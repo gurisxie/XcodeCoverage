@@ -1,1 +1,9 @@
 env.sh
+DerivedData
+*.pbxuser
+xcuserdata
+*.xccheckout
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+cleancov

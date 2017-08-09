@@ -3,7 +3,7 @@
 #   Copyright 2015 Jonathan M. Reid. See LICENSE.txt
 
 usage() {
-  echo "usage: getcov [[-s] [-x] [-xc] [-o output_dir] [-i info_file] [-v]] | [-h]]"
+  echo "usage: getcov [[-s] [-x] [-xc] [-o output_dir] [-i info_file] [-v]] [-p pod_obj]| [-h]]"
 }
 
 main() {
@@ -12,6 +12,7 @@ main() {
 
   LCOV_INFO=Coverage.info
   output_dir="${BUILT_PRODUCTS_DIR}"
+  POD_OBJS_DIR=()
   while [ "$1" != "" ]; do
     case $1 in
       -s|--show)
@@ -46,6 +47,13 @@ main() {
         echo "Show Help"
         exit
         ;;
+      -p|--addpod)
+        shift
+        pod_obj=$1
+        POD_OBJS_DIR[${#POD_OBJS_DIR[@]}]="${OBJECT_FILE_DIR_normal}/${CURRENT_ARCH}"
+        sed -i "" "/#POD_OBJ_DIR$/d" ${scripts}/cleancov
+        ;;
+
       *)
         usage
         exit 1
@@ -86,6 +94,9 @@ report_values() {
   echo "SRCROOT    : ${SRCROOT}"
   echo "OBJ_DIR    : ${OBJ_DIR}"
   echo "LCOV_PATH  : ${LCOV_PATH}"
+  for pod_obj_dir in ${POD_OBJS_DIR[@]}; do
+    echo "POD_OBJ   : ${pod_obj_dir}"
+  done
   echo "IGNORED    : ${XCODECOV_IGNORED_PATHS}"
 }
 
@@ -111,8 +122,16 @@ gather_coverage() {
   if [ "$verbose" = "1" ]; then
     echo "XcodeCoverage: Gathering coverage"
   fi
+  # generate base coverage -- modify by xiancheng(luqiang) 2016.6.12
+  # LCOV --capture --derive-func-data -b "${SRCROOT}" -d "${OBJ_DIR}" -o "${LCOV_INFO}"
 
-  LCOV --capture --derive-func-data -b "${SRCROOT}" -d "${OBJ_DIR}" -o "${LCOV_INFO}"
+  for pod_obj_dir in ${POD_OBJS_DIR[@]}; do
+    LCOV --capture --derive-func-data -b "${SRCROOT}" -d "${pod_obj_dir}" -o tmp.info
+    # generate pod coverage -- modify by xiancheng(luqiang) 2016.6.12
+    LCOV -a tmp.info -o ${LCOV_INFO}
+    # LCOV -a ${LCOV_INFO} -a tmp.info -o ${LCOV_INFO}
+    echo "LCOV --zerocounters -d ${pod_obj_dir} #POD_OBJ_DIR" >> ${scripts}/cleancov
+  done
 }
 
 exclude_data() {
@@ -127,7 +146,7 @@ exclude_data() {
   (cat "${SRCROOT}/.xcodecoverageignore"; echo) | while read IGNORE_THIS; do
     #use eval to expand any of the variables and then pass them to the shell - this allows
     #use of wildcards in the variables. 
-    eval LCOV --remove "${LCOV_INFO}" "${IGNORE_THIS}" -d "${OBJ_DIR}" -o "${LCOV_INFO}"
+    LCOV --remove "${LCOV_INFO}" "${IGNORE_THIS}" -d "${OBJ_DIR}" -o "${LCOV_INFO}"
   done
 }
 
